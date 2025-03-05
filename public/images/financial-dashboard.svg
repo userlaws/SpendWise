@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800px" height="600px" viewBox="0 0 800 600" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect fill="#F9FAFB" x="0" y="0" width="800" height="600"/>
+        <g transform="translate(100, 100)">
+            <!-- Dashboard Frame -->
+            <rect fill="#FFFFFF" x="0" y="0" width="600" height="400" rx="8"/>
+            <rect stroke="#E5E7EB" x="0.5" y="0.5" width="599" height="399" rx="7.5"/>
+            
+            <!-- Chart Elements -->
+            <rect fill="#9061F9" x="50" y="250" width="60" height="100" rx="4"/>
+            <rect fill="#9061F9" x="150" y="200" width="60" height="150" rx="4"/>
+            <rect fill="#9061F9" x="250" y="150" width="60" height="200" rx="4"/>
+            <rect fill="#9061F9" x="350" y="100" width="60" height="250" rx="4"/>
+            
+            <!-- Line Graph -->
+            <path d="M50,150 L150,100 L250,180 L350,120 L450,90" stroke="#4F46E5" stroke-width="3" stroke-linecap="round"/>
+            
+            <!-- Header Area -->
+            <rect fill="#F3F4F6" x="0" y="0" width="600" height="60" rx="8"/>
+        </g>
+    </g>
+</svg> 
