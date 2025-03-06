@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { loginUser } from '@/lib/auth';
+import Image from 'next/image'; // Import Image component for logo
 
 export default function LoginPage() {
   const router = useRouter();
@@ -86,7 +87,17 @@ export default function LoginPage() {
     <div className='flex min-h-screen items-center justify-center p-4 bg-gray-50'>
       <Card className='w-full max-w-md'>
         <CardHeader className='space-y-1'>
-          <CardTitle className='text-2xl font-bold'>Log in</CardTitle>
+          <Link href='/' className='flex items-center space-x-2'>
+            <Image
+              src='/logo.png'
+              alt='SpendWise Logo'
+              width={40}
+              height={40}
+            />{' '}
+            {/* Logo */}
+            <CardTitle className='text-2xl font-bold'>SpendWise</CardTitle>{' '}
+            {/* SpendWise Name */}
+          </Link>
           <CardDescription>
             Enter your credentials to access your account
           </CardDescription>

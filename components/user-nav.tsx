@@ -38,52 +38,24 @@ export function UserNav({
     }
   };
 
-  if (isDemo) {
-    return (
-      <div className='flex items-center gap-3'>
-        <div className='h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-600'>
-          <span className='text-sm font-medium'>D</span>
-        </div>
-        <div className='flex flex-col'>
-          <p className='text-sm font-medium'>Demo User</p>
-          <p className='text-xs text-gray-500'>demo@example.com</p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className='ml-auto text-gray-500 hover:text-gray-700'
-          aria-label='Logout'
-        >
-          <LogOut className='h-4 w-4' />
-        </button>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Link
-        href='/login'
-        className='text-sm font-medium text-primary hover:underline'
-      >
-        Log in
-      </Link>
-    );
-  }
-
   return (
     <div className='flex items-center gap-3'>
       <div className='h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-600'>
         <span className='text-sm font-medium'>
-          {user.first_name?.[0] || user.email?.[0] || 'U'}
+          {isDemo ? 'D' : user.first_name?.[0] || user.email?.[0] || 'U'}
         </span>
       </div>
       <div className='flex flex-col'>
         <p className='text-sm font-medium'>
-          {user.first_name
+          {isDemo
+            ? 'Demo User'
+            : user.first_name
             ? `${user.first_name} ${user.last_name || ''}`
             : user.email?.split('@')[0] || 'User'}
         </p>
-        <p className='text-xs text-gray-500'>{user.email}</p>
+        <p className='text-xs text-gray-500'>
+          {isDemo ? 'demo@example.com' : user.email}
+        </p>
       </div>
       <button
         onClick={handleLogout}

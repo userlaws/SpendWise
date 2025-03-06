@@ -3,6 +3,8 @@
 import { LayoutGrid, LineChart, BarChart3, User } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { NavigationItem } from '@/types';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 const dashboardRoutes: NavigationItem[] = [
   {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -36,9 +36,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Edit, Plus, Search, Trash } from 'lucide-react';
+import { Edit, Plus, Search } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { DashboardLayout } from '@/components/dashboard-layout';
 
 interface Transaction {
   id: string;
@@ -120,7 +121,7 @@ export default function TransactionsPage() {
         toast({
           title: 'Error loading transactions',
           description:
-            'Failed to load your transactions. Please try again later.',
+            'Failed to load your transactions data. Please try again later.',
           variant: 'destructive',
         });
       } finally {
@@ -131,7 +132,7 @@ export default function TransactionsPage() {
     fetchTransactionsData();
   }, [toast]);
 
-  // Filter transactions based on search and category
+  // Filter transactions based on search term and category
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch = transaction.description
       .toLowerCase()
@@ -144,7 +145,6 @@ export default function TransactionsPage() {
   // Handle adding a new transaction
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       const {
         data: { session },
@@ -152,89 +152,172 @@ export default function TransactionsPage() {
 
       if (!session) {
         toast({
-          title: 'Not authenticated',
-          description: 'Please log in to add transactions',
+          title: 'Authentication Error',
+          description: 'You must be logged in to add a transaction.',
           variant: 'destructive',
         });
         return;
       }
 
-      const amount = parseFloat(newTransaction.amount);
-
-      if (isNaN(amount)) {
-        toast({
-          title: 'Invalid amount',
-          description: 'Please enter a valid number for the amount',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('transactions')
-        .insert([
-          {
-            user_id: session.user.id,
-            description: newTransaction.description,
-            amount,
-            date: newTransaction.date,
-            category: newTransaction.category,
-          },
-        ])
-        .select();
+      const { data, error } = await supabase.from('transactions').insert([
+        {
+          description: newTransaction.description,
+          amount: parseFloat(newTransaction.amount),
+          date: newTransaction.date,
+          category: newTransaction.category,
+          user_id: session.user.id,
+        },
+      ]);
 
       if (error) throw error;
 
-      if (data) {
-        // Update local state with the new transaction
-        setTransactions([data[0], ...transactions]);
+      toast({
+        title: 'Transaction Added',
+        description: 'Your transaction has been added successfully.',
+      });
 
-        // Reset form
-        setNewTransaction({
-          description: '',
-          amount: '',
-          date: new Date().toISOString().split('T')[0],
-          category: '',
-        });
+      // Refresh transactions
+      const { data: updatedData, error: fetchError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
 
-        setIsAddDialogOpen(false);
+      if (fetchError) throw fetchError;
+      if (updatedData) setTransactions(updatedData);
 
-        toast({
-          title: 'Transaction added',
-          description: 'Your transaction has been added successfully.',
-        });
-      }
+      // Reset form and close dialog
+      setNewTransaction({
+        description: '',
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        category: '',
+      });
+      setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Error adding transaction:', error);
       toast({
-        title: 'Error adding transaction',
-        description: 'Failed to add your transaction. Please try again later.',
+        title: 'Error',
+        description: 'Failed to add transaction. Please try again.',
         variant: 'destructive',
       });
     }
   };
 
   return (
-    <div className='flex flex-col p-4 md:p-8 gap-6'>
-      <div className='flex flex-col md:flex-row items-start justify-between gap-4'>
-        <div>
-          <h1 className='text-2xl md:text-3xl font-bold'>Transactions</h1>
-          <p className='text-muted-foreground'>
-            View and manage your spending history
-          </p>
+    <DashboardLayout>
+      <div className='p-6 space-y-6'>
+        <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
+          <div>
+            <h1 className='text-2xl font-bold'>Transactions</h1>
+            <p className='text-muted-foreground'>
+              Manage and track your financial transactions
+            </p>
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className='h-4 w-4 mr-2' />
+            Add Transaction
+          </Button>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Transaction History</CardTitle>
+            <CardDescription>
+              View and filter your transaction history
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='flex flex-col md:flex-row gap-4 mb-6'>
+              <div className='relative flex-1'>
+                <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+                <Input
+                  type='search'
+                  placeholder='Search transactions...'
+                  className='pl-8'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className='w-full md:w-[200px]'>
+                  <SelectValue placeholder='All Categories' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>All Categories</SelectItem>
+                  <SelectItem value='Groceries'>Groceries</SelectItem>
+                  <SelectItem value='Dining'>Dining</SelectItem>
+                  <SelectItem value='Transportation'>Transportation</SelectItem>
+                  <SelectItem value='Entertainment'>Entertainment</SelectItem>
+                  <SelectItem value='Health'>Health</SelectItem>
+                  <SelectItem value='Utilities'>Utilities</SelectItem>
+                  <SelectItem value='Shopping'>Shopping</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isLoading ? (
+              <div className='text-center py-10'>Loading transactions...</div>
+            ) : filteredTransactions.length === 0 ? (
+              <div className='text-center py-10'>
+                <p className='text-muted-foreground mb-4'>
+                  No transactions found
+                </p>
+                <Button
+                  variant='outline'
+                  onClick={() => setIsAddDialogOpen(true)}
+                >
+                  Add Your First Transaction
+                </Button>
+              </div>
+            ) : (
+              <div className='rounded-md border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className='text-right'>Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell className='font-medium'>
+                          {transaction.description}
+                        </TableCell>
+                        <TableCell>{transaction.category}</TableCell>
+                        <TableCell>{formatDate(transaction.date)}</TableCell>
+                        <TableCell
+                          className={
+                            transaction.amount < 0
+                              ? 'text-destructive text-right'
+                              : 'text-green-600 text-right'
+                          }
+                        >
+                          {formatCurrency(transaction.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className='mr-2 h-4 w-4' />
-              Add Transaction
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+          <DialogContent className='sm:max-w-[425px]'>
             <DialogHeader>
-              <DialogTitle>Add New Transaction</DialogTitle>
+              <DialogTitle>Add Transaction</DialogTitle>
               <DialogDescription>
-                Enter the details of your new transaction.
+                Enter the details of your transaction below.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddTransaction}>
@@ -243,7 +326,6 @@ export default function TransactionsPage() {
                   <Label htmlFor='description'>Description</Label>
                   <Input
                     id='description'
-                    placeholder='Grocery shopping'
                     value={newTransaction.description}
                     onChange={(e) =>
                       setNewTransaction({
@@ -260,7 +342,6 @@ export default function TransactionsPage() {
                     id='amount'
                     type='number'
                     step='0.01'
-                    placeholder='50.00'
                     value={newTransaction.amount}
                     onChange={(e) =>
                       setNewTransaction({
@@ -296,12 +377,22 @@ export default function TransactionsPage() {
                         category: value,
                       })
                     }
-                    required
                   >
                     <SelectTrigger>
                       <SelectValue placeholder='Select a category' />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value='Groceries'>Groceries</SelectItem>
+                      <SelectItem value='Dining'>Dining</SelectItem>
+                      <SelectItem value='Transportation'>
+                        Transportation
+                      </SelectItem>
+                      <SelectItem value='Entertainment'>
+                        Entertainment
+                      </SelectItem>
+                      <SelectItem value='Health'>Health</SelectItem>
+                      <SelectItem value='Utilities'>Utilities</SelectItem>
+                      <SelectItem value='Shopping'>Shopping</SelectItem>
                       {categories.map((category) => (
                         <SelectItem key={category.id} value={category.name}>
                           {category.name}
@@ -312,108 +403,12 @@ export default function TransactionsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type='submit'>Save Transaction</Button>
+                <Button type='submit'>Add Transaction</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transaction History</CardTitle>
-          <CardDescription>
-            Browse and filter your past transactions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className='flex flex-col md:flex-row gap-4 mb-6'>
-            <div className='relative flex-1'>
-              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
-              <Input
-                placeholder='Search transactions...'
-                className='pl-8'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className='w-full md:w-[180px]'>
-                <SelectValue placeholder='All Categories' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.name}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isLoading ? (
-            <div className='text-center py-8'>
-              <p>Loading your transactions...</p>
-            </div>
-          ) : (
-            <div className='rounded-md border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className='text-right'>Amount</TableHead>
-                    <TableHead className='w-[100px]'>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className='text-center py-6 text-muted-foreground'
-                      >
-                        No transactions found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{formatDate(transaction.date)}</TableCell>
-                        <TableCell className='font-medium'>
-                          {transaction.description}
-                        </TableCell>
-                        <TableCell>
-                          <span className='inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-muted'>
-                            {transaction.category}
-                          </span>
-                        </TableCell>
-                        <TableCell className='text-right font-medium'>
-                          {formatCurrency(transaction.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex space-x-1'>
-                            <Button variant='ghost' size='icon'>
-                              <Edit className='h-4 w-4' />
-                              <span className='sr-only'>Edit</span>
-                            </Button>
-                            <Button variant='ghost' size='icon'>
-                              <Trash className='h-4 w-4' />
-                              <span className='sr-only'>Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    </DashboardLayout>
   );
 }

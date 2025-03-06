@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { registerUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient'; // Import Supabase client
+import Image from 'next/image'; // Import Image component for logo
 
 export default function SignupPage() {
   const router = useRouter();
@@ -29,23 +30,22 @@ export default function SignupPage() {
     username: '',
     fullName: '',
   });
-  const [connectionStatus, setConnectionStatus] = useState(
-    'Checking connection...'
-  );
+  // const [connectionStatus, setConnectionStatus] = useState(
+  //   'Checking connection...'
+  // );
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     // Check Supabase connection status
-    const checkConnection = async () => {
-      const { error } = await supabase.auth.getSession();
-      if (error) {
-        setConnectionStatus('Disconnected');
-      } else {
-        setConnectionStatus('Connected');
-      }
-    };
-
-    checkConnection();
+    // const checkConnection = async () => {
+    //   const { error } = await supabase.auth.getSession();
+    //   if (error) {
+    //     setConnectionStatus('Disconnected');
+    //   } else {
+    //     setConnectionStatus('Connected');
+    //   }
+    // };
+    // checkConnection();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,16 +129,22 @@ export default function SignupPage() {
     <div className='flex min-h-screen items-center justify-center p-4 bg-gray-50'>
       <Card className='w-full max-w-md'>
         <CardHeader className='space-y-1'>
-          <CardTitle className='text-2xl font-bold'>
-            Create an account
-          </CardTitle>
+          <Link href='/' className='flex items-center space-x-2'>
+            <Image
+              src='/logo.png'
+              alt='SpendWise Logo'
+              width={40}
+              height={40}
+            />
+            <CardTitle className='text-2xl font-bold'>SpendWise</CardTitle>
+          </Link>
           <CardDescription>
             Enter your information to create your SpendWise account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='mb-4'>
-            <p>Status: {connectionStatus}</p>
+            {/* <p>Status: {connectionStatus}</p> */}
             {errorMessage && (
               <div className='mt-2 p-2 border border-red-500 text-red-500 bg-red-100 rounded'>
                 {errorMessage}

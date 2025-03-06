@@ -7,6 +7,8 @@ import { UserNav } from '@/components/user-nav';
 import { NavigationItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { getCurrentSession, getUserData } from '@/lib/auth';
+import { LayoutDashboard, Receipt, PieChart, User } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -67,68 +69,37 @@ export function DashboardLayout({ children, routes }: DashboardLayoutProps) {
     );
   }
 
+  const navRoutes = [
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard className='h-5 w-5 mr-2' />,
+      active: pathname === '/dashboard',
+    },
+    {
+      href: '/transactions',
+      label: 'Transactions',
+      icon: <Receipt className='h-5 w-5 mr-2' />,
+      active: pathname === '/transactions',
+    },
+    {
+      href: '/budget',
+      label: 'Budget',
+      icon: <PieChart className='h-5 w-5 mr-2' />,
+      active: pathname === '/budget',
+    },
+    {
+      href: '/profile',
+      label: 'Profile',
+      icon: <User className='h-5 w-5 mr-2' />,
+      active: pathname === '/profile',
+    },
+  ];
+
   return (
     <div className='flex min-h-screen'>
-      {/* Sidebar */}
-      <aside className='w-64 border-r bg-white dark:bg-gray-950'>
-        {/* Logo */}
-        <div className='flex items-center gap-2 p-6'>
-          <div className='flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white font-bold'>
-            SW
-          </div>
-          <span className='text-xl font-semibold text-purple-600'>
-            SpendWise
-          </span>
-        </div>
-
-        {/* Navigation */}
-        <nav className='mt-6 px-4'>
-          {routes.map((route) => {
-            const href = isDemo
-              ? `/demo${route.href.replace('/dashboard', '')}`
-              : route.href;
-            const isActive = pathname === href;
-
-            return (
-              <Link
-                key={route.href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-purple-100 text-purple-600'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50'
-                )}
-              >
-                {route.icon && (
-                  <route.icon
-                    className={cn(
-                      'h-5 w-5',
-                      isActive ? 'text-purple-600' : 'text-gray-500'
-                    )}
-                  />
-                )}
-                {route.name}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User section at bottom of sidebar */}
-        <div className='mt-auto p-4 border-t absolute bottom-0 w-full'>
-          <UserNav isDemo={isDemo} user={user} />
-        </div>
-      </aside>
-
       {/* Main content */}
       <div className='flex-1 flex flex-col'>
-        <header className='sticky top-0 z-50 flex h-16 items-center border-b bg-white dark:bg-gray-950 px-6'>
-          <h1 className='text-xl font-semibold'>
-            {routes.find((route) => pathname === route.href)?.name ||
-              'Dashboard'}
-          </h1>
-        </header>
-
         <main className='flex-1 p-6'>
           {isDemo && (
             <div className='bg-yellow-100 p-2 rounded-md mb-4 text-sm text-center'>

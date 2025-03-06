@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { calculatePercentage, formatCurrency } from '@/lib/utils';
-import { Edit, Save, PlusCircle } from 'lucide-react';
+import { Edit, Plus } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { DashboardLayout } from '@/components/dashboard-layout';
 import {
   Dialog,
   DialogContent,
@@ -22,18 +23,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
 interface BudgetCategory {
-  id: string;
-  user_id: string;
   category_id: string;
   category_name: string;
   budget_amount: number;
   spent_amount: number;
-  color?: string;
+  color: string;
+  user_id: string;
 }
 
 export default function BudgetPage() {
@@ -45,7 +44,7 @@ export default function BudgetPage() {
   const [newCategory, setNewCategory] = useState({
     name: '',
     budget: '',
-    color: '#3b82f6', // Default color
+    color: '#6d28d9', // Default purple color to match theme
   });
 
   const { toast } = useToast();
@@ -105,38 +104,20 @@ export default function BudgetPage() {
     fetchBudgetData();
   }, [toast]);
 
-  // Handle editing a category budget
   const handleEditClick = (categoryId: string, currentBudget: number) => {
     setEditingCategory(categoryId);
     setEditValue(currentBudget);
   };
 
-  // Save edited budget
   const handleSaveClick = async (categoryId: string) => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        toast({
-          title: 'Not authenticated',
-          description: 'Please log in to update your budget',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Update in Supabase
       const { error } = await supabase
         .from('budget_categories')
         .update({ budget_amount: editValue })
-        .eq('category_id', categoryId)
-        .eq('user_id', session.user.id);
+        .eq('category_id', categoryId);
 
       if (error) throw error;
 
-      // Update local state
       setCategories(
         categories.map((cat) =>
           cat.category_id === categoryId
@@ -144,7 +125,6 @@ export default function BudgetPage() {
             : cat
         )
       );
-
       setEditingCategory(null);
 
       toast({
@@ -154,17 +134,15 @@ export default function BudgetPage() {
     } catch (error) {
       console.error('Error updating budget:', error);
       toast({
-        title: 'Error updating budget',
-        description: 'Failed to update your budget. Please try again later.',
+        title: 'Error',
+        description: 'Failed to update budget. Please try again.',
         variant: 'destructive',
       });
     }
   };
 
-  // Add new budget category
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       const {
         data: { session },
@@ -172,90 +150,241 @@ export default function BudgetPage() {
 
       if (!session) {
         toast({
-          title: 'Not authenticated',
-          description: 'Please log in to add a budget category',
+          title: 'Authentication Error',
+          description: 'You must be logged in to add a category.',
           variant: 'destructive',
         });
         return;
       }
 
-      const budgetAmount = parseFloat(newCategory.budget);
+      const newCategoryData = {
+        category_name: newCategory.name,
+        budget_amount: parseFloat(newCategory.budget),
+        spent_amount: 0,
+        color: newCategory.color,
+        user_id: session.user.id,
+      };
 
-      if (isNaN(budgetAmount)) {
-        toast({
-          title: 'Invalid budget',
-          description: 'Please enter a valid number for the budget',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Generate a unique ID for the new category
-      const categoryId = `cat_${Date.now()}`;
-
-      // Add to Supabase
       const { data, error } = await supabase
         .from('budget_categories')
-        .insert([
-          {
-            user_id: session.user.id,
-            category_id: categoryId,
-            category_name: newCategory.name,
-            budget_amount: budgetAmount,
-            spent_amount: 0,
-            color: newCategory.color,
-          },
-        ])
+        .insert([newCategoryData])
         .select();
 
       if (error) throw error;
 
       if (data) {
-        // Update local state
         setCategories([...categories, data[0]]);
-
-        // Reset form
-        setNewCategory({
-          name: '',
-          budget: '',
-          color: '#3b82f6',
-        });
-
-        setIsAddDialogOpen(false);
-
-        toast({
-          title: 'Category added',
-          description: 'Your new budget category has been added successfully.',
-        });
       }
+
+      setNewCategory({
+        name: '',
+        budget: '',
+        color: '#6d28d9',
+      });
+      setIsAddDialogOpen(false);
+
+      toast({
+        title: 'Category Added',
+        description: 'Your budget category has been added successfully.',
+      });
     } catch (error) {
       console.error('Error adding category:', error);
       toast({
-        title: 'Error adding category',
-        description:
-          'Failed to add your budget category. Please try again later.',
+        title: 'Error',
+        description: 'Failed to add category. Please try again.',
         variant: 'destructive',
       });
     }
   };
 
   return (
-    <div className='flex flex-col p-4 md:p-8 gap-6'>
-      <div className='flex flex-col md:flex-row items-start justify-between gap-4'>
-        <div>
-          <h1 className='text-2xl md:text-3xl font-bold'>Budget Settings</h1>
-          <p className='text-muted-foreground'>
-            Manage your monthly spending limits
-          </p>
+    <DashboardLayout>
+      <div className='p-6 space-y-6'>
+        <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
+          <div>
+            <h1 className='text-2xl font-bold'>Budget</h1>
+            <p className='text-muted-foreground'>
+              Manage your monthly budget allocations
+            </p>
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className='h-4 w-4 mr-2' />
+            Add Category
+          </Button>
         </div>
+
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+          <Card>
+            <CardHeader className='pb-2'>
+              <CardTitle className='text-sm font-medium'>
+                Total Budget
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>
+                {formatCurrency(totalBudget)}
+              </div>
+              <p className='text-xs text-muted-foreground'>
+                Monthly allocation
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className='pb-2'>
+              <CardTitle className='text-sm font-medium'>Total Spent</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>
+                {formatCurrency(totalSpent)}
+              </div>
+              <p className='text-xs text-muted-foreground'>This month</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className='pb-2'>
+              <CardTitle className='text-sm font-medium'>Remaining</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>
+                {formatCurrency(totalBudget - totalSpent)}
+              </div>
+              <Progress
+                value={Math.min(100, totalPercentage)}
+                className='h-2 mt-2'
+                indicatorClassName={
+                  totalSpent > totalBudget ? 'bg-destructive' : undefined
+                }
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Budget Categories</CardTitle>
+            <CardDescription>
+              Manage your budget allocations by category
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className='text-center py-10'>Loading budget data...</div>
+            ) : categories.length === 0 ? (
+              <div className='text-center py-10'>
+                <p className='text-muted-foreground mb-4'>
+                  No budget categories found
+                </p>
+                <Button
+                  variant='outline'
+                  onClick={() => setIsAddDialogOpen(true)}
+                >
+                  Create Your First Budget Category
+                </Button>
+              </div>
+            ) : (
+              <div className='space-y-4'>
+                {categories.map((category) => (
+                  <div
+                    key={category.category_id}
+                    className='border rounded-lg p-4'
+                  >
+                    <div className='flex justify-between items-center mb-2'>
+                      <div className='flex items-center'>
+                        <div
+                          className='w-4 h-4 rounded-full mr-2'
+                          style={{ backgroundColor: category.color }}
+                        ></div>
+                        <h3 className='font-medium'>
+                          {category.category_name}
+                        </h3>
+                      </div>
+                      <div className='flex items-center space-x-2'>
+                        {editingCategory === category.category_id ? (
+                          <>
+                            <Input
+                              type='number'
+                              value={editValue}
+                              onChange={(e) =>
+                                setEditValue(parseFloat(e.target.value))
+                              }
+                              className='w-24 h-8'
+                            />
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() =>
+                                handleSaveClick(category.category_id)
+                              }
+                            >
+                              <Edit className='h-4 w-4' />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <span className='font-medium'>
+                              {formatCurrency(category.budget_amount)}
+                            </span>
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() =>
+                                handleEditClick(
+                                  category.category_id,
+                                  category.budget_amount
+                                )
+                              }
+                            >
+                              <Edit className='h-4 w-4' />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className='space-y-1'>
+                      <div className='flex justify-between text-sm'>
+                        <span className='text-muted-foreground'>
+                          {formatCurrency(category.spent_amount)} spent
+                        </span>
+                        <span
+                          className={
+                            category.spent_amount > category.budget_amount
+                              ? 'text-destructive'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {calculatePercentage(
+                            category.spent_amount,
+                            category.budget_amount
+                          ).toFixed(0)}
+                          % of budget
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(
+                          100,
+                          calculatePercentage(
+                            category.spent_amount,
+                            category.budget_amount
+                          )
+                        )}
+                        className='h-2'
+                        indicatorClassName={
+                          category.spent_amount > category.budget_amount
+                            ? 'bg-destructive'
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Add Budget Category Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className='mr-2 h-4 w-4' />
-              Add Category
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+          <DialogContent className='sm:max-w-[425px]'>
             <DialogHeader>
               <DialogTitle>Add Budget Category</DialogTitle>
               <DialogDescription>
@@ -265,10 +394,9 @@ export default function BudgetPage() {
             <form onSubmit={handleAddCategory}>
               <div className='grid gap-4 py-4'>
                 <div className='grid gap-2'>
-                  <Label htmlFor='category-name'>Category Name</Label>
+                  <Label htmlFor='name'>Category Name</Label>
                   <Input
-                    id='category-name'
-                    placeholder='e.g., Groceries, Entertainment'
+                    id='name'
                     value={newCategory.name}
                     onChange={(e) =>
                       setNewCategory({
@@ -280,12 +408,11 @@ export default function BudgetPage() {
                   />
                 </div>
                 <div className='grid gap-2'>
-                  <Label htmlFor='budget-amount'>Monthly Budget</Label>
+                  <Label htmlFor='budget'>Monthly Budget</Label>
                   <Input
-                    id='budget-amount'
+                    id='budget'
                     type='number'
                     step='0.01'
-                    placeholder='e.g., 500.00'
                     value={newCategory.budget}
                     onChange={(e) =>
                       setNewCategory({
@@ -297,10 +424,14 @@ export default function BudgetPage() {
                   />
                 </div>
                 <div className='grid gap-2'>
-                  <Label htmlFor='category-color'>Color</Label>
-                  <div className='flex gap-2'>
+                  <Label htmlFor='color'>Color</Label>
+                  <div className='flex items-center space-x-2'>
+                    <div
+                      className='w-8 h-8 rounded border'
+                      style={{ backgroundColor: newCategory.color }}
+                    ></div>
                     <Input
-                      id='category-color'
+                      id='color'
                       type='color'
                       value={newCategory.color}
                       onChange={(e) =>
@@ -309,198 +440,23 @@ export default function BudgetPage() {
                           color: e.target.value,
                         })
                       }
-                      className='w-12 h-10 p-1 cursor-pointer'
+                      className='w-full h-10'
                     />
-                    <div className='flex-1'>
-                      <div
-                        className='w-full h-10 rounded-md border'
-                        style={{ backgroundColor: newCategory.color }}
-                      ></div>
-                    </div>
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button type='submit'>Save Category</Button>
+                <Button
+                  type='submit'
+                  className='bg-purple-600 hover:bg-purple-700'
+                >
+                  Save Category
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      {isLoading ? (
-        <div className='text-center py-8'>
-          <p>Loading your budget data...</p>
-        </div>
-      ) : (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Budget Overview</CardTitle>
-              <CardDescription>
-                Your total budget and spending progress
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm font-medium'>Total Budget</span>
-                  <span className='text-sm font-medium'>
-                    {formatCurrency(totalSpent)} of{' '}
-                    {formatCurrency(totalBudget)}
-                  </span>
-                </div>
-                <Progress
-                  value={totalPercentage}
-                  className='h-2'
-                  indicatorClassName={
-                    totalPercentage > 90
-                      ? 'bg-destructive'
-                      : totalPercentage > 75
-                      ? 'bg-secondary'
-                      : ''
-                  }
-                />
-                <p className='text-xs text-muted-foreground mt-1'>
-                  {totalPercentage >= 100
-                    ? "You've exceeded your total budget"
-                    : `${(100 - totalPercentage).toFixed(
-                        0
-                      )}% of your budget remaining`}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Budgets</CardTitle>
-              <CardDescription>
-                Set spending limits for each category
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {categories.length === 0 ? (
-                <div className='text-center py-6'>
-                  <p className='text-muted-foreground'>
-                    No budget categories yet
-                  </p>
-                  <Button
-                    onClick={() => setIsAddDialogOpen(true)}
-                    variant='outline'
-                    className='mt-2'
-                  >
-                    Add Your First Budget Category
-                  </Button>
-                </div>
-              ) : (
-                <div className='space-y-6'>
-                  {categories.map((category) => {
-                    const percentage = calculatePercentage(
-                      category.spent_amount,
-                      category.budget_amount
-                    );
-                    const isOverBudget =
-                      category.spent_amount > category.budget_amount;
-
-                    return (
-                      <div key={category.category_id} className='space-y-2'>
-                        <div className='flex items-center justify-between'>
-                          <div className='flex items-center gap-2'>
-                            <div
-                              className='w-3 h-3 rounded-full'
-                              style={{
-                                backgroundColor: category.color || '#3b82f6',
-                              }}
-                            />
-                            <span className='font-medium'>
-                              {category.category_name}
-                            </span>
-                          </div>
-
-                          <div className='flex items-center gap-2'>
-                            {editingCategory === category.category_id ? (
-                              <>
-                                <div className='flex items-center gap-2'>
-                                  <Input
-                                    type='number'
-                                    value={editValue}
-                                    onChange={(e) =>
-                                      setEditValue(Number(e.target.value))
-                                    }
-                                    className='w-24 h-8'
-                                  />
-                                  <Button
-                                    size='icon'
-                                    variant='ghost'
-                                    onClick={() =>
-                                      handleSaveClick(category.category_id)
-                                    }
-                                  >
-                                    <Save className='h-4 w-4' />
-                                    <span className='sr-only'>Save</span>
-                                  </Button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <span
-                                  className={
-                                    isOverBudget
-                                      ? 'text-destructive font-medium'
-                                      : ''
-                                  }
-                                >
-                                  {formatCurrency(category.spent_amount)} /{' '}
-                                  {formatCurrency(category.budget_amount)}
-                                </span>
-                                <Button
-                                  size='icon'
-                                  variant='ghost'
-                                  onClick={() =>
-                                    handleEditClick(
-                                      category.category_id,
-                                      category.budget_amount
-                                    )
-                                  }
-                                >
-                                  <Edit className='h-4 w-4' />
-                                  <span className='sr-only'>Edit</span>
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <Progress
-                          value={percentage}
-                          className='h-2'
-                          indicatorClassName={
-                            isOverBudget ? 'bg-destructive' : ''
-                          }
-                        />
-
-                        <div className='flex justify-between text-xs text-muted-foreground'>
-                          <span>
-                            {isOverBudget
-                              ? `Exceeded by ${formatCurrency(
-                                  category.spent_amount - category.budget_amount
-                                )}`
-                              : `${formatCurrency(
-                                  category.budget_amount - category.spent_amount
-                                )} remaining`}
-                          </span>
-                          <span>{percentage.toFixed(0)}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
+    </DashboardLayout>
   );
 }

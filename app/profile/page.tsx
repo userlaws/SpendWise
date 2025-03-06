@@ -1,121 +1,51 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getAvatarUrl } from '@/lib/avatar-utils';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
-
-interface UserProfile {
-  user_id: string;
-  username: string;
-  email: string;
-  full_name: string;
-  avatar_url?: string;
-}
-
-interface UserPreferences {
-  preferred_currency: string;
-  notifications_enabled: boolean;
-  budget_alerts: boolean;
-  weekly_summary: boolean;
-  theme: string;
-}
+import { LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    preferred_currency: 'USD',
-    notifications_enabled: true,
-    budget_alerts: true,
-    weekly_summary: true,
-    theme: 'system',
-  });
-
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [editedProfile, setEditedProfile] = useState({
-    full_name: '',
-    username: '',
-  });
-
+  const [user, setUser] = useState<any>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
-  // Fetch user profile data
   useEffect(() => {
-    const fetchProfileData = async () => {
+    const fetchUserProfile = async () => {
       try {
         setIsLoading(true);
-
-        // Get user session
         const {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (sessionError) throw sessionError;
-
-        if (!session) {
-          console.error('No active session found');
-          window.location.href = '/login';
-          return;
+        if (sessionError || !session) {
+          throw sessionError || new Error('No session found');
         }
 
-        // Fetch user profile
+        // Fetch user profile data including display name if it exists
         const { data: profileData, error: profileError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single();
-
-        if (profileError) throw profileError;
-
-        if (profileData) {
-          setProfile({
-            user_id: profileData.user_id,
-            username: profileData.username,
-            email: session.user.email || '',
-            full_name: profileData.full_name || '',
-            avatar_url: profileData.avatar_url,
-          });
-
-          setEditedProfile({
-            full_name: profileData.full_name || '',
-            username: profileData.username,
-          });
-        }
-
-        // Fetch user preferences
-        const { data: prefsData, error: prefsError } = await supabase
           .from('user_preferences')
-          .select('*')
+          .select('display_name')
           .eq('user_id', session.user.id)
           .single();
 
-        if (!prefsError && prefsData) {
-          setPreferences({
-            preferred_currency: prefsData.preferred_currency || 'USD',
-            notifications_enabled: prefsData.notifications_enabled ?? true,
-            budget_alerts: prefsData.budget_alerts ?? true,
-            weekly_summary: prefsData.weekly_summary ?? true,
-            theme: prefsData.theme || 'system',
-          });
+        if (profileData && profileData.display_name) {
+          setDisplayName(profileData.display_name);
         }
+
+        setUser(session.user);
       } catch (error) {
-        console.error('Error fetching profile data:', error);
+        console.error('Error fetching profile:', error);
         toast({
           title: 'Error loading profile',
           description:
@@ -127,345 +57,135 @@ export default function ProfilePage() {
       }
     };
 
-    fetchProfileData();
+    fetchUserProfile();
   }, [toast]);
 
-  // Update profile information
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!profile) return;
-
+  const handleLogout = async () => {
     try {
-      setIsUpdating(true);
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          full_name: editedProfile.full_name,
-          username: editedProfile.username,
-        })
-        .eq('user_id', profile.user_id);
-
+      const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      // Update local state
-      setProfile({
-        ...profile,
-        full_name: editedProfile.full_name,
-        username: editedProfile.username,
+      toast({
+        title: 'Logged out successfully',
       });
+
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        title: 'Error logging out',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveDisplayName = async () => {
+    if (!user) return;
+
+    try {
+      setIsSaving(true);
+
+      const { error } = await supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        display_name: displayName,
+      });
+
+      if (error) throw error;
 
       toast({
         title: 'Profile updated',
-        description: 'Your profile has been updated successfully.',
+        description: 'Your display name has been updated successfully.',
       });
-    } catch (error) {
-      console.error('Error updating profile:', error);
+    } catch (error: any) {
       toast({
         title: 'Error updating profile',
-        description: 'Failed to update your profile. Please try again later.',
+        description: error.message || 'Please try again',
         variant: 'destructive',
       });
     } finally {
-      setIsUpdating(false);
+      setIsSaving(false);
     }
   };
 
-  // Update user preferences
-  const handleUpdatePreferences = async (
-    key: keyof UserPreferences,
-    value: any
-  ) => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        toast({
-          title: 'Not authenticated',
-          description: 'Please log in to update your preferences',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Update local state first for a responsive UI
-      setPreferences({
-        ...preferences,
-        [key]: value,
-      });
-
-      // Try to update existing record
-      const { error } = await supabase.from('user_preferences').upsert({
-        user_id: session.user.id,
-        [key]: value,
-      });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating preferences:', error);
-      toast({
-        title: 'Error updating preferences',
-        description:
-          'Failed to update your preferences. Please try again later.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Get avatar URL with fallback
-  const avatarUrl = profile?.avatar_url
-    ? profile.avatar_url
-    : getAvatarUrl('', profile?.full_name || profile?.username || '');
+  if (isLoading) {
+    return (
+      <div className='flex items-center justify-center h-full'>Loading...</div>
+    );
+  }
 
   return (
-    <div className='flex flex-col p-4 md:p-8 gap-6'>
-      <div>
-        <h1 className='text-2xl md:text-3xl font-bold'>Profile</h1>
-        <p className='text-muted-foreground'>
-          Manage your account settings and preferences
-        </p>
+    <div className='flex-1 flex flex-col p-6'>
+      <div className='flex flex-col items-center justify-center space-y-8'>
+        {/* Profile Picture */}
+        <Avatar className='h-32 w-32'>
+          <AvatarFallback className='bg-purple-600 text-white text-4xl'>
+            {user?.email?.[0]?.toUpperCase() || 'U'}
+          </AvatarFallback>
+        </Avatar>
+
+        {/* Display Name Input */}
+        <div className='w-full max-w-md space-y-4'>
+          <div className='space-y-2'>
+            <Label htmlFor='displayName'>Display Name</Label>
+            <div className='flex space-x-2'>
+              <Input
+                id='displayName'
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder='Enter your preferred display name'
+              />
+              <Button onClick={handleSaveDisplayName} disabled={isSaving}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <Button
+          variant='outline'
+          className='border-purple-600 text-purple-600 hover:bg-purple-50 hover:text-purple-700 w-40'
+          onClick={handleLogout}
+        >
+          <LogOut className='h-4 w-4 mr-2' />
+          Logout
+        </Button>
       </div>
 
-      {isLoading ? (
-        <div className='text-center py-8'>
-          <p>Loading your profile data...</p>
+      {/* User Account Info at Bottom */}
+      <div className='p-6 border-t'>
+        <div className='max-w-md mx-auto'>
+          <h3 className='text-lg font-medium mb-4'>Account Information</h3>
+          <div className='space-y-4'>
+            <div>
+              <Label htmlFor='email'>Email Address</Label>
+              <Input
+                id='email'
+                value={user?.email}
+                readOnly
+                className='bg-gray-50'
+              />
+              <p className='text-xs text-muted-foreground mt-1'>
+                This is your username for logging in
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor='created'>Account Created</Label>
+              <Input
+                id='created'
+                value={
+                  user?.created_at
+                    ? new Date(user.created_at).toLocaleDateString()
+                    : 'N/A'
+                }
+                readOnly
+                className='bg-gray-50'
+              />
+            </div>
+          </div>
         </div>
-      ) : !profile ? (
-        <div className='text-center py-8'>
-          <p>Unable to load profile data. Please try again later.</p>
-          <Button
-            onClick={() => window.location.reload()}
-            variant='outline'
-            className='mt-2'
-          >
-            Reload
-          </Button>
-        </div>
-      ) : (
-        <div className='grid gap-6'>
-          <Card>
-            <CardHeader className='flex flex-row items-center gap-4'>
-              <Avatar className='h-16 w-16'>
-                <AvatarImage
-                  src={avatarUrl}
-                  alt={profile.full_name || profile.username}
-                />
-                <AvatarFallback>
-                  {(profile.full_name || profile.username)
-                    .charAt(0)
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle>{profile.full_name || profile.username}</CardTitle>
-                <CardDescription>{profile.email}</CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Tabs defaultValue='general'>
-            <TabsList className='grid w-full grid-cols-2 md:w-auto md:inline-flex'>
-              <TabsTrigger value='general'>General</TabsTrigger>
-              <TabsTrigger value='preferences'>Preferences</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value='general' className='mt-4'>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>
-                    Update your personal details
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleUpdateProfile} className='space-y-4'>
-                    <div className='space-y-2'>
-                      <Label htmlFor='full-name'>Full Name</Label>
-                      <Input
-                        id='full-name'
-                        value={editedProfile.full_name}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            full_name: e.target.value,
-                          })
-                        }
-                        placeholder='Your full name'
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <Label htmlFor='username'>Username</Label>
-                      <Input
-                        id='username'
-                        value={editedProfile.username}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            username: e.target.value,
-                          })
-                        }
-                        placeholder='Your username'
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <Label htmlFor='email'>Email</Label>
-                      <Input
-                        id='email'
-                        value={profile.email}
-                        disabled
-                        readOnly
-                        placeholder='Your email'
-                      />
-                      <p className='text-xs text-muted-foreground'>
-                        Email cannot be changed directly. Contact support for
-                        help.
-                      </p>
-                    </div>
-                    <Button type='submit' disabled={isUpdating}>
-                      {isUpdating ? 'Updating...' : 'Update Profile'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value='preferences' className='mt-4'>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preferences</CardTitle>
-                  <CardDescription>
-                    Customize your application settings
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-6'>
-                  <div>
-                    <h3 className='text-lg font-medium mb-4'>
-                      General Settings
-                    </h3>
-                    <div className='space-y-4'>
-                      <div className='grid gap-2'>
-                        <Label htmlFor='currency'>Preferred Currency</Label>
-                        <select
-                          id='currency'
-                          value={preferences.preferred_currency}
-                          onChange={(e) =>
-                            handleUpdatePreferences(
-                              'preferred_currency',
-                              e.target.value
-                            )
-                          }
-                          className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-                        >
-                          <option value='USD'>US Dollar (USD)</option>
-                          <option value='EUR'>Euro (EUR)</option>
-                          <option value='GBP'>British Pound (GBP)</option>
-                          <option value='CAD'>Canadian Dollar (CAD)</option>
-                          <option value='AUD'>Australian Dollar (AUD)</option>
-                          <option value='JPY'>Japanese Yen (JPY)</option>
-                        </select>
-                      </div>
-
-                      <div className='grid gap-2'>
-                        <Label htmlFor='theme'>Theme</Label>
-                        <select
-                          id='theme'
-                          value={preferences.theme}
-                          onChange={(e) =>
-                            handleUpdatePreferences('theme', e.target.value)
-                          }
-                          className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-                        >
-                          <option value='system'>System Default</option>
-                          <option value='light'>Light</option>
-                          <option value='dark'>Dark</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h3 className='text-lg font-medium mb-4'>Notifications</h3>
-                    <div className='space-y-4'>
-                      <div className='flex items-center justify-between'>
-                        <div className='space-y-0.5'>
-                          <Label htmlFor='notifications'>
-                            Email Notifications
-                          </Label>
-                          <p className='text-sm text-muted-foreground'>
-                            Receive email notifications about your account
-                          </p>
-                        </div>
-                        <Switch
-                          id='notifications'
-                          checked={preferences.notifications_enabled}
-                          onCheckedChange={(checked) =>
-                            handleUpdatePreferences(
-                              'notifications_enabled',
-                              checked
-                            )
-                          }
-                        />
-                      </div>
-
-                      <div className='flex items-center justify-between'>
-                        <div className='space-y-0.5'>
-                          <Label htmlFor='budget-alerts'>Budget Alerts</Label>
-                          <p className='text-sm text-muted-foreground'>
-                            Get notified when you're close to exceeding your
-                            budget
-                          </p>
-                        </div>
-                        <Switch
-                          id='budget-alerts'
-                          checked={preferences.budget_alerts}
-                          onCheckedChange={(checked) =>
-                            handleUpdatePreferences('budget_alerts', checked)
-                          }
-                          disabled={!preferences.notifications_enabled}
-                        />
-                      </div>
-
-                      <div className='flex items-center justify-between'>
-                        <div className='space-y-0.5'>
-                          <Label htmlFor='weekly-summary'>Weekly Summary</Label>
-                          <p className='text-sm text-muted-foreground'>
-                            Receive a weekly summary of your spending
-                          </p>
-                        </div>
-                        <Switch
-                          id='weekly-summary'
-                          checked={preferences.weekly_summary}
-                          onCheckedChange={(checked) =>
-                            handleUpdatePreferences('weekly_summary', checked)
-                          }
-                          disabled={!preferences.notifications_enabled}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h3 className='text-lg font-medium mb-4'>
-                      Account Actions
-                    </h3>
-                    <div className='space-y-4'>
-                      <Button variant='outline'>Change Password</Button>
-                      <Button variant='destructive'>Delete Account</Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
