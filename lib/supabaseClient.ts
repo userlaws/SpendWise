@@ -1,25 +1,24 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Directly check if the environment variables are available
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Initialize with default empty values if environment variables are not available
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Validate required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    'Missing Supabase environment variables. Please check your .env.local file.'
-  );
-}
-
-// Create a properly typed singleton instance
+// Create a singleton instance
 let supabaseInstance: SupabaseClient | null = null;
 
 export const getSupabase = (): SupabaseClient => {
   if (!supabaseInstance) {
+    // Only throw an error in the browser environment, not during builds
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error(
-        'Supabase URL and Anon Key must be provided. Check your environment variables.'
-      );
+      if (typeof window !== 'undefined') {
+        console.error(
+          'Missing Supabase environment variables. Please check your .env.local file.'
+        );
+        throw new Error(
+          'Supabase URL and Anon Key must be provided. Check your environment variables.'
+        );
+      }
     }
 
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
@@ -33,7 +32,7 @@ export const getSupabase = (): SupabaseClient => {
   return supabaseInstance;
 };
 
-// Export configured supabase client
+// Export a direct instance for convenience
 export const supabase = getSupabase();
 
 // Enhanced connection check with better error handling
