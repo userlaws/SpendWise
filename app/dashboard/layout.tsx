@@ -1,38 +1,12 @@
 'use client';
 
-import { LayoutGrid, LineChart, BarChart3, User } from 'lucide-react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { NavigationItem } from '@/types';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import React from 'react';
 
-const dashboardRoutes: NavigationItem[] = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutGrid,
-  },
-  {
-    name: 'Transactions',
-    href: '/transactions',
-    icon: LineChart,
-  },
-  {
-    name: 'Budget',
-    href: '/budget',
-    icon: BarChart3,
-  },
-  {
-    name: 'Profile',
-    href: '/profile',
-    icon: User,
-  },
-];
-
-export default function DashboardRootLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardLayout routes={dashboardRoutes}>{children}</DashboardLayout>;
+  // Remove the sidebar from here since it's already in the page components
+  return <>{children}</>;
 }

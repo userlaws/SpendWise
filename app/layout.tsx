@@ -2,23 +2,26 @@ import type React from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { Toaster } from '@/components/ui/toaster';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Vibrant - Modern Website',
-  description: 'A vibrant and modern website with a clean, intuitive layout',
-  generator: 'v0.dev',
+  title: 'SpendWise - Budget Tracker',
+  description: 'A budget tracking application to manage your finances',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang='en'>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <Toaster />
+        {children}
+      </body>
     </html>
   );
 }

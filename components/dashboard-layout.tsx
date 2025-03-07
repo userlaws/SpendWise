@@ -12,10 +12,13 @@ import { supabase } from '@/lib/supabaseClient';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  routes: NavigationItem[];
+  routes?: any[]; // Making routes optional
 }
 
-export function DashboardLayout({ children, routes }: DashboardLayoutProps) {
+export function DashboardLayout({
+  children,
+  routes = [],
+}: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
