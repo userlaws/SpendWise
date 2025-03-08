@@ -83,7 +83,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [Supabase](https://supabase.io/) for providing the backend services.
 - [Next.js](https://nextjs.org/) for the framework.
 - [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-## Contact
-
-For any inquiries, please reach out to [your-email@example.com](mailto:your-email@example.com).
