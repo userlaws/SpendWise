@@ -87,4 +87,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-If you intend to use this site. Your data will be saved but if you need to contact me just rest your password and hopefully one day I'll see it and I'll email you back.
+If you intend to use this site. Your data will be saved so its actually useable and useful but if you need to contact me just rest your password and hopefully one day I'll see it and I'll email you back.
