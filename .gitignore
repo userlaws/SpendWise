@@ -19,6 +19,9 @@ yarn-error.log*
 # env files
 .env*
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # vercel
 .vercel
@@ -35,6 +38,9 @@ api/
 
 # Visual Studio Code
 .vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
 
 # Log files
 *.log
@@ -45,3 +51,27 @@ api/
 
 # Coverage reports
 coverage/
+
+# Ignore any other sensitive files or directories
+supabase/.env
+
+# Ignore everything
+*
+
+# Unignore the main page (replace with the actual path to your main page)
+app/page.tsx 
+
+# Unignore the main page (replace with the actual path to your main page)
+app/page.tsx 
+app/login/page.tsx  
+
+app/admin/page.tsx
+
+
+# Ignore specific directories
+node_modules/
+.next/
+out/
+build/
+.vscode/
+.idea/
