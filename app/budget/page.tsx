@@ -34,6 +34,10 @@ import {
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import {
+  Select as BasicSelect,
+  SelectItem as BasicSelectItem,
+} from '@/components/ui/select';
 
 interface BudgetCategory {
   category_id: string;
@@ -202,57 +206,69 @@ export default function BudgetPage() {
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!newCategory.name || parseFloat(newCategory.budget) <= 0) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a valid category name and budget amount.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      setIsLoading(true);
 
-      if (!session) {
-        toast({
-          title: 'Authentication Error',
-          description: 'You must be logged in to add a category.',
-          variant: 'destructive',
-        });
-        return;
+      // Use the server-side API to add the category
+      const response = await fetch('/api/budget/add-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          categoryName: newCategory.name,
+          budgetAmount: parseFloat(newCategory.budget),
+          color: newCategory.color,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to add budget category');
       }
 
-      const newCategoryData = {
-        category_name: newCategory.name,
-        budget_amount: parseFloat(newCategory.budget),
-        spent_amount: 0,
-        color: newCategory.color,
-        user_id: session.user.id,
-      };
-
-      const { data, error } = await supabase
+      // Refresh categories list
+      const { data: updatedCategories, error: fetchError } = await supabase
         .from('budget_categories')
-        .insert([newCategoryData])
-        .select();
+        .select('*')
+        .eq('user_id', supabase.auth.user()?.id);
 
-      if (error) throw error;
-
-      if (data) {
-        setCategories([...categories, data[0]]);
+      if (!fetchError && updatedCategories) {
+        setCategories(updatedCategories);
       }
 
+      toast({
+        title: 'Success',
+        description: 'Budget category added successfully!',
+      });
+
+      // Reset form fields
       setNewCategory({
         name: '',
         budget: '',
         color: '#6d28d9',
       });
       setIsAddDialogOpen(false);
-
-      toast({
-        title: 'Category Added',
-        description: 'Your budget category has been added successfully.',
-      });
-    } catch (error) {
-      console.error('Error adding category:', error);
+    } catch (error: any) {
+      console.error('Error in add category:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add category. Please try again.',
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 

@@ -4,6 +4,26 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Get the site URL for redirects based on the environment
+export const getURL = () => {
+  let url =
+    process?.env?.NEXT_PUBLIC_SITE_URL ?? // Set this to your site URL in production env.
+    process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Automatically set by Vercel.
+    'http://localhost:3000/';
+
+  // Make sure to include `https://` when not localhost.
+  url = url.includes('localhost')
+    ? url
+    : url.startsWith('http')
+    ? url
+    : `https://${url}`;
+
+  // Make sure to include a trailing `/`.
+  url = url.endsWith('/') ? url : `${url}/`;
+
+  return url;
+};
+
 // Create a singleton instance
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -34,6 +54,21 @@ export const getSupabase = (): SupabaseClient => {
 
 // Export a direct instance for convenience
 export const supabase = getSupabase();
+
+// Password reset functionality
+export const resetPassword = async (email: string) => {
+  const redirectUrl = `${getURL()}reset-password`;
+
+  console.log(
+    `Sending password reset to ${email} with redirect to ${redirectUrl}`
+  );
+
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectUrl,
+  });
+
+  return { data, error };
+};
 
 // Enhanced connection check with better error handling
 export const checkSupabaseConnection = async () => {

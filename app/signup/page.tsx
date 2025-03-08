@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { registerUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient'; // Import Supabase client
 import Image from 'next/image'; // Import Image component for logo
 
-export default function SignupPage() {
+// Create a client component that uses useSearchParams
+function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -30,23 +31,17 @@ export default function SignupPage() {
     username: '',
     fullName: '',
   });
-  // const [connectionStatus, setConnectionStatus] = useState(
-  //   'Checking connection...'
-  // );
-  const [errorMessage, setErrorMessage] = useState('');
+  const [error, setError] = useState('');
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
 
+  // Check if there's an email in the query params (for password reset flow)
   useEffect(() => {
-    // Check Supabase connection status
-    // const checkConnection = async () => {
-    //   const { error } = await supabase.auth.getSession();
-    //   if (error) {
-    //     setConnectionStatus('Disconnected');
-    //   } else {
-    //     setConnectionStatus('Connected');
-    //   }
-    // };
-    // checkConnection();
-  }, []);
+    const email = searchParams.get('email');
+    if (email) {
+      setFormData((prev) => ({ ...prev, email }));
+      setIsPasswordReset(true);
+    }
+  }, [searchParams]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -56,70 +51,53 @@ export default function SignupPage() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Basic validation
-    if (!formData.email || !formData.password || !formData.username) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: 'Password Error',
-        description: 'Passwords do not match.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
 
     try {
-      setIsLoading(true);
-      setErrorMessage(''); // Reset error message
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
 
-      // Use our combined registration function
-      const result = await registerUser(
-        formData.email,
-        formData.password,
-        formData.username,
-        {
-          full_name: formData.fullName,
-          is_onboarded: false,
-          preferences: { currency: 'USD', theme: 'light' },
-        }
-      );
-
-      if (result.error) {
-        setErrorMessage(result.error); // Set error message
-        toast({
-          title: 'Registration Failed',
-          description: result.error,
-          variant: 'destructive',
-        });
+      if (error) {
+        setError(error.message);
         return;
       }
 
-      // Success - display toast and redirect
-      toast({
-        title: 'Account Created',
-        description: 'Your account has been created successfully.',
-      });
+      if (data && data.user) {
+        // Create user record in users table
+        const { error: profileError } = await supabase.from('users').insert([
+          {
+            id: data.user.id,
+            username: formData.username,
+            email: formData.email,
+            full_name: formData.fullName,
+          },
+        ]);
 
-      // Redirect to dashboard or onboarding
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Signup error:', error);
-      setErrorMessage('An unexpected error occurred. Please try again.'); // Set error message
-      toast({
-        title: 'Registration Error',
-        description: 'An unexpected error occurred. Please try again.',
-        variant: 'destructive',
-      });
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+          setError('Failed to create user profile');
+          return;
+        }
+
+        // Show success message
+        toast({
+          title: isPasswordReset ? 'Account Recreated' : 'Account Created',
+          description: isPasswordReset
+            ? 'Your account has been recreated with your new password. You can now log in.'
+            : 'Your account has been created. Please check your email to confirm your account.',
+        });
+
+        // Redirect to login page
+        router.push('/login');
+      }
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      setError(error.message || 'Failed to create account');
     } finally {
       setIsLoading(false);
     }
@@ -129,29 +107,38 @@ export default function SignupPage() {
     <div className='flex min-h-screen items-center justify-center p-4 bg-gray-50'>
       <Card className='w-full max-w-md'>
         <CardHeader className='space-y-1'>
-          <Link href='/' className='flex items-center space-x-2'>
+          <div className='flex items-center space-x-2'>
             <Image
               src='/logo.png'
               alt='SpendWise Logo'
               width={40}
               height={40}
             />
-            <CardTitle className='text-2xl font-bold'>SpendWise</CardTitle>
-          </Link>
+            <CardTitle className='text-2xl font-bold'>
+              {isPasswordReset ? 'Recreate Account' : 'Create an Account'}
+            </CardTitle>
+          </div>
           <CardDescription>
-            Enter your information to create your SpendWise account
+            {isPasswordReset
+              ? 'Your password reset was approved. Please recreate your account with your new password.'
+              : 'Enter your details to create your account'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className='mb-4'>
-            {/* <p>Status: {connectionStatus}</p> */}
-            {errorMessage && (
-              <div className='mt-2 p-2 border border-red-500 text-red-500 bg-red-100 rounded'>
-                {errorMessage}
-              </div>
-            )}
-          </div>
           <form onSubmit={handleSubmit} className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='email'>Email</Label>
+              <Input
+                id='email'
+                name='email'
+                type='email'
+                placeholder='john.doe@example.com'
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                readOnly={isPasswordReset}
+              />
+            </div>
             <div className='space-y-2'>
               <Label htmlFor='username'>Username</Label>
               <Input
@@ -171,17 +158,6 @@ export default function SignupPage() {
                 placeholder='John Doe'
                 value={formData.fullName}
                 onChange={handleInputChange}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='email'>Email</Label>
-              <Input
-                id='email'
-                name='email'
-                type='email'
-                placeholder='john.doe@example.com'
-                value={formData.email}
-                onChange={handleInputChange}
                 required
               />
             </div>
@@ -196,47 +172,40 @@ export default function SignupPage() {
                 required
               />
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>Confirm Password</Label>
-              <Input
-                id='confirmPassword'
-                name='confirmPassword'
-                type='password'
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                required
-              />
-            </div>
+            {error && <p className='text-sm text-red-500'>{error}</p>}
             <Button type='submit' className='w-full' disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Create account'}
+              {isLoading
+                ? 'Creating Account...'
+                : isPasswordReset
+                ? 'Recreate Account'
+                : 'Sign Up'}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className='flex flex-col items-center gap-2'>
+        <CardFooter className='flex justify-center'>
           <div className='text-sm text-muted-foreground'>
             Already have an account?{' '}
             <Link href='/login' className='text-primary hover:underline'>
               Log in
             </Link>
           </div>
-          <div className='text-xs text-muted-foreground'>
-            By creating an account, you agree to our{' '}
-            <Link
-              href='/terms'
-              className='text-muted-foreground hover:underline'
-            >
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link
-              href='/privacy'
-              className='text-muted-foreground hover:underline'
-            >
-              Privacy Policy
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='flex min-h-screen items-center justify-center'>
+          Loading...
+        </div>
+      }
+    >
+      <SignUpForm />
+    </Suspense>
   );
 }

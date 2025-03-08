@@ -1,12 +1,18 @@
 'use client';
 
 import React from 'react';
+import { DashboardShell } from '@/components/dashboard-shell';
+import { AdminPrompt } from '@/components/admin-prompt';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Remove the sidebar from here since it's already in the page components
-  return <>{children}</>;
+  return (
+    <>
+      <AdminPrompt />
+      <DashboardShell>{children}</DashboardShell>
+    </>
+  );
 }

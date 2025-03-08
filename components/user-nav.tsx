@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
+import { LogOut, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logoutUser } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 export function UserNav({
   user,
@@ -15,6 +17,26 @@ export function UserNav({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+
+        setIsAdmin(!!data);
+      }
+    };
+
+    checkAdmin();
+  }, []);
 
   const handleLogout = async () => {
     if (isDemo) {
@@ -38,24 +60,36 @@ export function UserNav({
     }
   };
 
+  // Demo user display logic
+  if (isDemo) {
+    return (
+      <div className='flex items-center gap-3'>
+        <div className='h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-600'>
+          <span className='text-sm font-medium'>D</span>
+        </div>
+        <div className='flex flex-col'>
+          <p className='text-sm font-medium'>Demo User</p>
+          <p className='text-xs text-gray-500'>demo@example.com</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular user display logic
   return (
     <div className='flex items-center gap-3'>
       <div className='h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-600'>
         <span className='text-sm font-medium'>
-          {isDemo ? 'D' : user.first_name?.[0] || user.email?.[0] || 'U'}
+          {user?.first_name?.[0] || user?.email?.[0] || 'U'}
         </span>
       </div>
       <div className='flex flex-col'>
         <p className='text-sm font-medium'>
-          {isDemo
-            ? 'Demo User'
-            : user.first_name
+          {user?.first_name
             ? `${user.first_name} ${user.last_name || ''}`
-            : user.email?.split('@')[0] || 'User'}
+            : user?.email?.split('@')[0] || 'User'}
         </p>
-        <p className='text-xs text-gray-500'>
-          {isDemo ? 'demo@example.com' : user.email}
-        </p>
+        <p className='text-xs text-gray-500'>{user?.email}</p>
       </div>
       <button
         onClick={handleLogout}

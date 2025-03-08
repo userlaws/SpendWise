@@ -1,251 +1,164 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowDown, ArrowUp, DollarSign, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { useToast } from '@/components/ui/use-toast';
+import { Card } from '@/components/ui/card';
 
-interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  category: string;
-  date: string;
-}
-
-export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
-    []
-  );
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchRecentTransactions = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          console.error('No active session found.');
-          return; // Exit if no session
-        }
-
-        const { data, error } = await supabase
-          .from('orders')
-          .select(
-            `
-            order_id,
-            products(name, price),
-            quantity,
-            order_date
-          `
-          )
-          .eq('user_id', session.user.id)
-          .order('order_date', { ascending: false })
-          .limit(5);
-
-        if (error) {
-          console.error('Error fetching orders:', error);
-          throw error; // Throw error for further handling
-        }
-
-        const formattedTransactions: Transaction[] = data.map((item) => ({
-          id: item.order_id,
-          description: item.products[0].name, // Accessing the first product's name
-          amount: item.products[0].price * item.quantity, // Accessing the first product's price
-          category: 'Purchase',
-          date: item.order_date,
-        }));
-
-        setRecentTransactions(formattedTransactions);
-      } catch (error) {
-        console.error('Error fetching transactions:', error);
-      } finally {
-        setIsLoading(false); // Ensure loading state is updated
-      }
-    };
-
-    fetchRecentTransactions();
-  }, []);
-
-  // Calculate percentage spent
+export default function DemoPage() {
+  // Sample demo data
   const totalBudget = 1500.0;
-  const totalSpent = 1117.95;
-  const remaining = 382.05;
-  const percentSpent = Math.round((totalSpent / totalBudget) * 100);
+  const spentAmount = 1117.95;
+  const remainingBudget = 382.05;
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  const spendingCategories = [
+    { name: 'Housing', amount: 650, percent: 43 },
+    { name: 'Food', amount: 250, percent: 17 },
+    { name: 'Transportation', amount: 120, percent: 8 },
+    { name: 'Entertainment', amount: 97.95, percent: 7 },
+  ];
+
+  const recentTransactions = [
+    {
+      id: 1,
+      description: 'Grocery Store',
+      category: 'Food',
+      amount: 45.32,
+      date: new Date(),
+    },
+    {
+      id: 2,
+      description: 'Gas Station',
+      category: 'Transportation',
+      amount: 38.65,
+      date: new Date(Date.now() - 86400000),
+    },
+    {
+      id: 3,
+      description: 'Movie Tickets',
+      category: 'Entertainment',
+      amount: 24.0,
+      date: new Date(Date.now() - 86400000 * 3),
+    },
+    {
+      id: 4,
+      description: 'Coffee Shop',
+      category: 'Food',
+      amount: 5.75,
+      date: new Date(Date.now() - 86400000 * 2),
+    },
+  ];
 
   return (
-    <div className='mx-auto max-w-6xl space-y-8 p-6'>
-      <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4'>
-        <div>
-          <h1 className='text-3xl font-bold tracking-tight'>Dashboard</h1>
-          <p className='text-muted-foreground'>
-            Track your spending and budget at a glance
+    <div className='space-y-6'>
+      <div>
+        <h1 className='text-2xl font-bold mb-2'>Dashboard</h1>
+        <p className='text-muted-foreground'>
+          Track your spending and budget at a glance
+        </p>
+      </div>
+
+      <div className='grid gap-4 md:grid-cols-3'>
+        <Card className='p-4'>
+          <h2 className='text-sm font-medium text-muted-foreground mb-2'>
+            Total Budget
+          </h2>
+          <p className='text-2xl font-bold'>${totalBudget.toFixed(2)}</p>
+          <p className='text-xs text-muted-foreground'>Monthly allocation</p>
+        </Card>
+
+        <Card className='p-4'>
+          <h2 className='text-sm font-medium text-muted-foreground mb-2'>
+            Total Spent
+          </h2>
+          <p className='text-2xl font-bold'>${spentAmount.toFixed(2)}</p>
+          <div className='w-full h-2 bg-gray-200 rounded-full mt-2'>
+            <div
+              className='h-full bg-purple-600 rounded-full'
+              style={{ width: '75%' }}
+            ></div>
+          </div>
+          <p className='text-xs text-muted-foreground mt-1'>
+            75% of budget used
           </p>
-        </div>
-        <Button className='bg-primary hover:bg-primary/90'>
-          <Plus className='mr-2 h-4 w-4' />
-          Add Transaction
-        </Button>
-      </div>
-
-      <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-        <Card className='shadow-sm hover:shadow transition-shadow'>
-          <CardHeader className='flex flex-row items-center justify-between pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
-              Total Budget
-            </CardTitle>
-            <DollarSign className='h-4 w-4 text-muted-foreground' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-3xl font-bold'>${totalBudget.toFixed(2)}</div>
-            <p className='text-xs text-muted-foreground mt-1'>
-              Monthly allocation
-            </p>
-          </CardContent>
         </Card>
 
-        <Card className='shadow-sm hover:shadow transition-shadow'>
-          <CardHeader className='flex flex-row items-center justify-between pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
-              Total Spent
-            </CardTitle>
-            <ArrowUp className='h-4 w-4 text-destructive' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-3xl font-bold'>${totalSpent.toFixed(2)}</div>
-            <p className='text-xs text-muted-foreground mt-1'>This month</p>
-            <Progress value={percentSpent} className='h-2 mt-4' />
-            <p className='text-xs text-muted-foreground mt-1'>
-              {percentSpent}% of budget used
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className='shadow-sm hover:shadow transition-shadow'>
-          <CardHeader className='flex flex-row items-center justify-between pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
-              Remaining
-            </CardTitle>
-            <ArrowDown className='h-4 w-4 text-emerald-500' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-3xl font-bold'>${remaining.toFixed(2)}</div>
-            <p className='text-xs text-muted-foreground mt-1'>
-              Available to spend
-            </p>
-            <div className='mt-4 flex items-center gap-2'>
-              <div
-                className={`h-2 w-2 rounded-full ${
-                  remaining < 200 ? 'bg-destructive' : 'bg-emerald-500'
-                }`}
-              ></div>
-              <p className='text-xs'>
-                {remaining < 200 ? 'Low balance warning' : 'Budget on track'}
-              </p>
-            </div>
-          </CardContent>
+        <Card className='p-4'>
+          <h2 className='text-sm font-medium text-muted-foreground mb-2'>
+            Remaining
+          </h2>
+          <p className='text-2xl font-bold'>${remainingBudget.toFixed(2)}</p>
+          <p className='text-xs text-muted-foreground'>Available to spend</p>
+          <p className='text-xs text-green-500 flex items-center mt-1'>
+            <span className='inline-block w-2 h-2 rounded-full bg-green-500 mr-1'></span>
+            Budget on track
+          </p>
         </Card>
       </div>
 
-      <div className='grid gap-6 md:grid-cols-2'>
-        <Card className='shadow-sm'>
-          <CardHeader>
-            <CardTitle>Monthly Spending Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='space-y-4'>
-              {[
-                { category: 'Housing', amount: 650, percentage: 43 },
-                { category: 'Food', amount: 250, percentage: 17 },
-                {
-                  category: 'Transportation',
-                  amount: 120,
-                  percentage: 8,
-                },
-                {
-                  category: 'Entertainment',
-                  amount: 97.95,
-                  percentage: 7,
-                },
-              ].map((item) => (
-                <div key={item.category} className='space-y-2'>
-                  <div className='flex items-center justify-between'>
-                    <div className='text-sm font-medium'>{item.category}</div>
-                    <div className='text-sm font-medium'>
-                      ${item.amount.toFixed(2)}
-                    </div>
-                  </div>
-                  <Progress value={item.percentage} className='h-2' />
-                  <p className='text-xs text-muted-foreground'>
-                    {item.percentage}% of total spent
-                  </p>
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+        <div>
+          <h2 className='text-xl font-semibold mb-4'>
+            Monthly Spending Breakdown
+          </h2>
+          <Card className='p-4'>
+            {spendingCategories.map((category, index) => (
+              <div key={index} className='mb-4 last:mb-0'>
+                <div className='flex justify-between mb-1'>
+                  <span>{category.name}</span>
+                  <span>${category.amount.toFixed(2)}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className='w-full h-2 bg-gray-200 rounded-full'>
+                  <div
+                    className='h-full bg-purple-600 rounded-full'
+                    style={{ width: `${category.percent}%` }}
+                  ></div>
+                </div>
+                <p className='text-xs text-gray-500 mt-1'>
+                  {category.percent}% of total spent
+                </p>
+              </div>
+            ))}
+          </Card>
+        </div>
 
-        <Card className='shadow-sm'>
-          <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='space-y-4'>
-              {[
-                {
-                  name: 'Grocery Store',
-                  date: 'Today',
-                  amount: 45.32,
-                  category: 'Food',
-                },
-                {
-                  name: 'Gas Station',
-                  date: 'Yesterday',
-                  amount: 38.65,
-                  category: 'Transportation',
-                },
-                {
-                  name: 'Movie Tickets',
-                  date: 'Mar 3',
-                  amount: 24.0,
-                  category: 'Entertainment',
-                },
-                {
-                  name: 'Coffee Shop',
-                  date: 'Mar 2',
-                  amount: 5.75,
-                  category: 'Food',
-                },
-              ].map((transaction, index) => (
-                <div
-                  key={index}
-                  className='flex items-center justify-between border-b pb-3 last:border-0 last:pb-0'
-                >
-                  <div className='space-y-1'>
-                    <p className='text-sm font-medium'>{transaction.name}</p>
-                    <p className='text-xs text-muted-foreground'>
-                      {transaction.date} · {transaction.category}
+        <div>
+          <h2 className='text-xl font-semibold mb-4'>Recent Transactions</h2>
+          <div className='space-y-3'>
+            {recentTransactions.map((transaction) => (
+              <Card key={transaction.id} className='p-3'>
+                <div className='flex justify-between'>
+                  <div>
+                    <p className='font-medium'>{transaction.description}</p>
+                    <p className='text-sm text-gray-500'>
+                      {transaction.date.getTime() ===
+                      new Date().setHours(0, 0, 0, 0)
+                        ? 'Today'
+                        : transaction.date.toLocaleDateString() ===
+                          new Date(Date.now() - 86400000).toLocaleDateString()
+                        ? 'Yesterday'
+                        : `${new Date(
+                            transaction.date
+                          ).toLocaleDateString()}`}{' '}
+                      · {transaction.category}
                     </p>
                   </div>
-                  <div className='text-sm font-medium'>
-                    -${transaction.amount.toFixed(2)}
+                  <div className='text-right'>
+                    <p className='font-medium text-red-500'>
+                      -${transaction.amount.toFixed(2)}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className='text-center mt-6'>
+        <Link href='/login'>
+          <Button variant='outline'>Exit Demo</Button>
+        </Link>
       </div>
     </div>
   );

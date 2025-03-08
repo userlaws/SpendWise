@@ -1,109 +1,131 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
-import { mockUser } from '@/lib/data';
 import { useToast } from '@/components/ui/use-toast';
-import { LogOut } from 'lucide-react';
 
-export default function ProfilePage() {
-  const [user, setUser] = useState(mockUser);
-  const [displayName, setDisplayName] = useState(mockUser.name);
+export default function DemoProfilePage() {
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: 'Demo',
+    lastName: 'User',
+    email: 'demo@example.com',
+    username: 'demouser',
+  });
   const { toast } = useToast();
-  const router = useRouter();
 
-  const handleSaveDisplayName = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: 'Profile Updated',
-      description: 'Your display name has been updated successfully.',
-    });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleLogout = () => {
-    toast({
-      title: 'Demo Mode',
-      description:
-        'In a real account, this would log you out. Redirecting to login page...',
-    });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
 
+    // Simulate API call
     setTimeout(() => {
-      router.push('/login');
-    }, 2000);
+      setIsSaving(false);
+      toast({
+        title: 'Profile Updated',
+        description: 'Your profile has been updated successfully (demo mode)',
+      });
+    }, 800);
   };
 
   return (
-    <div className='flex flex-col h-full'>
-      <div className='flex-1 flex flex-col items-center justify-center p-6 space-y-8'>
-        {/* Profile Picture */}
-        <Avatar className='h-32 w-32'>
-          <AvatarFallback className='bg-purple-600 text-white text-4xl'>
-            D
-          </AvatarFallback>
-        </Avatar>
-
-        {/* Display Name Input */}
-        <div className='w-full max-w-md space-y-4'>
-          <div className='space-y-2'>
-            <Label htmlFor='displayName'>Display Name</Label>
-            <div className='flex space-x-2'>
-              <Input
-                id='displayName'
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder='Enter your preferred display name'
-              />
-              <Button onClick={handleSaveDisplayName}>Save</Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Logout Button */}
-        <Button
-          variant='outline'
-          className='border-purple-600 text-purple-600 hover:bg-purple-50 hover:text-purple-700 w-40'
-          onClick={handleLogout}
-        >
-          <LogOut className='h-4 w-4 mr-2' />
-          Logout
-        </Button>
+    <div className='space-y-6'>
+      <div>
+        <h1 className='text-2xl font-bold'>Your Profile</h1>
+        <p className='text-muted-foreground'>Manage your account settings</p>
       </div>
 
-      {/* User Account Info at Bottom */}
-      <div className='p-6 border-t'>
-        <div className='max-w-md mx-auto'>
-          <h3 className='text-lg font-medium mb-4'>Account Information</h3>
-          <div className='space-y-4'>
-            <div>
-              <Label htmlFor='email'>Email Address</Label>
-              <Input
-                id='email'
-                value='demo@example.com'
-                readOnly
-                className='bg-gray-50'
-              />
-              <p className='text-xs text-muted-foreground mt-1'>
-                This is your username for logging in
+      <Card>
+        <form onSubmit={handleSubmit}>
+          <CardHeader>
+            <CardTitle>Personal Information</CardTitle>
+            <CardDescription>Update your personal details</CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='firstName'>First Name</Label>
+                <Input
+                  id='firstName'
+                  name='firstName'
+                  value={formData.firstName}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='lastName'>Last Name</Label>
+                <Input
+                  id='lastName'
+                  name='lastName'
+                  value={formData.lastName}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='email'>Email</Label>
+              <Input id='email' name='email' value={formData.email} disabled />
+              <p className='text-xs text-muted-foreground'>
+                Your email cannot be changed
               </p>
             </div>
 
-            <div>
-              <Label htmlFor='created'>Account Created</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='username'>Username</Label>
               <Input
-                id='created'
-                value='January 1, 2023'
-                readOnly
-                className='bg-gray-50'
+                id='username'
+                name='username'
+                value={formData.username}
+                onChange={handleChange}
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+          <CardFooter>
+            <Button type='submit' disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Security</CardTitle>
+          <CardDescription>
+            Manage your password and security settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <p className='text-sm'>
+            Password can be changed from the security settings.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button variant='outline'>Change Password</Button>
+        </CardFooter>
+      </Card>
+
+      <div className='text-center text-sm text-muted-foreground'>
+        <p>This is a demo page. Any changes made will not be saved.</p>
       </div>
     </div>
   );

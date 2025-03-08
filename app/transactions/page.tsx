@@ -11,11 +11,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
+  Select as BasicSelect,
+  SelectItem as BasicSelectItem,
   SelectTrigger,
   SelectValue,
+  SelectContent,
 } from '@/components/ui/select';
 import {
   Table,
@@ -78,7 +78,7 @@ export default function TransactionsPage() {
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    category: '',
+    category: 'uncategorized',
   });
 
   const { toast } = useToast();
@@ -279,7 +279,7 @@ export default function TransactionsPage() {
         description: '',
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        category: '',
+        category: 'uncategorized',
       });
       setIsAddDialogOpen(false);
     } catch (error) {
@@ -370,33 +370,27 @@ export default function TransactionsPage() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Select
-                    value={categoryFilter}
+                  <BasicSelect
+                    value={categoryFilter || 'all'}
                     onValueChange={setCategoryFilter}
                   >
-                    <SelectTrigger className='w-full md:w-[200px]'>
-                      <SelectValue placeholder='All Categories' />
+                    <SelectTrigger>
+                      <SelectValue placeholder='Select a category' />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='all'>All Categories</SelectItem>
-                      <SelectItem value='Groceries'>Groceries</SelectItem>
-                      <SelectItem value='Dining'>Dining</SelectItem>
-                      <SelectItem value='Transportation'>
-                        Transportation
-                      </SelectItem>
-                      <SelectItem value='Entertainment'>
-                        Entertainment
-                      </SelectItem>
-                      <SelectItem value='Health'>Health</SelectItem>
-                      <SelectItem value='Utilities'>Utilities</SelectItem>
-                      <SelectItem value='Shopping'>Shopping</SelectItem>
+                      <BasicSelectItem value='all'>
+                        All Categories
+                      </BasicSelectItem>
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
+                        <BasicSelectItem
+                          key={category.id}
+                          value={category.name}
+                        >
                           {category.name}
-                        </SelectItem>
+                        </BasicSelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </BasicSelect>
                 </div>
 
                 {isLoading ? (
@@ -511,37 +505,51 @@ export default function TransactionsPage() {
                     </div>
                     <div className='grid gap-2'>
                       <Label htmlFor='category'>Category</Label>
-                      <Select
-                        value={newTransaction.category}
-                        onValueChange={(value) =>
+                      <BasicSelect
+                        value={newTransaction.category || 'uncategorized'}
+                        onValueChange={(value: string) =>
                           setNewTransaction({
                             ...newTransaction,
                             category: value,
                           })
                         }
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder='Select a category' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='Groceries'>Groceries</SelectItem>
-                          <SelectItem value='Dining'>Dining</SelectItem>
-                          <SelectItem value='Transportation'>
-                            Transportation
-                          </SelectItem>
-                          <SelectItem value='Entertainment'>
-                            Entertainment
-                          </SelectItem>
-                          <SelectItem value='Health'>Health</SelectItem>
-                          <SelectItem value='Utilities'>Utilities</SelectItem>
-                          <SelectItem value='Shopping'>Shopping</SelectItem>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.name}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <BasicSelectItem value='uncategorized'>
+                          Select a category
+                        </BasicSelectItem>
+                        <BasicSelectItem value='Groceries'>
+                          Groceries
+                        </BasicSelectItem>
+                        <BasicSelectItem value='Dining'>Dining</BasicSelectItem>
+                        <BasicSelectItem value='Transportation'>
+                          Transportation
+                        </BasicSelectItem>
+                        <BasicSelectItem value='Entertainment'>
+                          Entertainment
+                        </BasicSelectItem>
+                        <BasicSelectItem value='Health'>Health</BasicSelectItem>
+                        <BasicSelectItem value='Utilities'>
+                          Utilities
+                        </BasicSelectItem>
+                        <BasicSelectItem value='Shopping'>
+                          Shopping
+                        </BasicSelectItem>
+                        {categories.map((category) => {
+                          const safeValue =
+                            category.name ||
+                            `category-${Math.random()
+                              .toString(36)
+                              .substring(2, 9)}`;
+                          return (
+                            <BasicSelectItem
+                              key={category.id || `cat-${Math.random()}`}
+                              value={safeValue}
+                            >
+                              {category.name || 'Category'}
+                            </BasicSelectItem>
+                          );
+                        })}
+                      </BasicSelect>
                     </div>
                   </div>
                   <DialogFooter>

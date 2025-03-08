@@ -18,16 +18,16 @@ import {
   DollarSign,
   TrendingDown,
   TrendingUp,
-  Home,
-  CreditCard,
-  BarChart3,
-  User,
-  LogOut,
 } from 'lucide-react';
-import { calculatePercentage, formatCurrency, formatDate } from '@/lib/utils';
+import {
+  calculatePercentage,
+  formatCurrency,
+  formatDate,
+  getSafeSelectValue,
+} from '@/lib/utils';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { usePathname, useRouter } from 'next/navigation';
+import { TransactionForm } from '@/components/transaction-form';
 
 interface Transaction {
   id: string;
@@ -52,55 +52,8 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [totalBudget, setTotalBudget] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [remainingBudget, setRemainingBudget] = useState(0);
   const { toast } = useToast();
-  const pathname = usePathname();
-  const router = useRouter();
-
-  // Define routes for navigation
-  const routes = [
-    {
-      href: '/dashboard',
-      label: 'Dashboard',
-      icon: <Home className='h-5 w-5 mr-2' />,
-      active: pathname === '/dashboard',
-    },
-    {
-      href: '/transactions',
-      label: 'Transactions',
-      icon: <CreditCard className='h-5 w-5 mr-2' />,
-      active: pathname === '/transactions',
-    },
-    {
-      href: '/budget',
-      label: 'Budget',
-      icon: <BarChart3 className='h-5 w-5 mr-2' />,
-      active: pathname === '/budget',
-    },
-    {
-      href: '/profile',
-      label: 'Profile',
-      icon: <User className='h-5 w-5 mr-2' />,
-      active: pathname === '/profile',
-    },
-  ];
-
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      toast({
-        title: 'Logged out successfully',
-      });
-      router.push('/login');
-    } catch (error: any) {
-      toast({
-        title: 'Error logging out',
-        description: error.message || 'Please try again',
-        variant: 'destructive',
-      });
-    }
-  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -174,12 +127,20 @@ export default function DashboardPage() {
 
         // Set the state with whatever data we have
         setCategories(formattedCategories);
-        setTotalBudget(
-          formattedCategories.reduce((sum, cat) => sum + cat.budget, 0)
+
+        // Calculate totals based on the fetched data
+        const calculatedTotalBudget = formattedCategories.reduce(
+          (sum, cat) => sum + cat.budget,
+          0
         );
-        setTotalSpent(
-          formattedCategories.reduce((sum, cat) => sum + cat.spent, 0)
+        const calculatedTotalSpent = formattedCategories.reduce(
+          (sum, cat) => sum + cat.spent,
+          0
         );
+
+        setTotalBudget(calculatedTotalBudget);
+        setTotalSpent(calculatedTotalSpent);
+        setRemainingBudget(calculatedTotalBudget - calculatedTotalSpent);
         setRecentTransactions(transactionsList);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -188,6 +149,7 @@ export default function DashboardPage() {
         setCategories([]);
         setTotalBudget(0);
         setTotalSpent(0);
+        setRemainingBudget(0);
         setRecentTransactions([]);
       } finally {
         setIsLoading(false);
@@ -195,7 +157,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [toast]);
+  }, []);
 
   // Calculate other derived values
   const percentSpent = calculatePercentage(totalSpent, totalBudget);
@@ -204,237 +166,276 @@ export default function DashboardPage() {
     (cat) => cat.spent > cat.budget
   );
 
+  const handleAddTransaction = async (newTransaction) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to add transactions.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([
+          {
+            ...newTransaction,
+            user_id: session.user.id,
+            date: new Date().toISOString().split('T')[0], // Use current date if not specified
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error('Error adding transaction:', error);
+        toast({
+          title: 'Error',
+          description: `Failed to add transaction: ${error.message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Add the new transaction to the recent transactions list
+      if (data && data[0]) {
+        const newTransactionWithId = {
+          id: data[0].id,
+          description: data[0].description,
+          amount: data[0].amount,
+          category: data[0].category,
+          date: data[0].date,
+        };
+
+        setRecentTransactions([
+          newTransactionWithId,
+          ...recentTransactions.slice(0, 4),
+        ]);
+      }
+
+      // Update category spent amount if the transaction has a category
+      if (newTransaction.category) {
+        const category = categories.find(
+          (cat) => cat.name === newTransaction.category
+        );
+        if (category) {
+          // Update the spent amount in the database
+          await supabase
+            .from('budget_categories')
+            .update({
+              spent_amount: category.spent + newTransaction.amount,
+            })
+            .eq('category_id', category.id);
+
+          // Update local state
+          setCategories(
+            categories.map((cat) =>
+              cat.id === category.id
+                ? { ...cat, spent: cat.spent + newTransaction.amount }
+                : cat
+            )
+          );
+        }
+      }
+
+      // Update total spent and remaining budget
+      const newAmount = newTransaction.amount || 0;
+      setTotalSpent((prevTotal) => prevTotal + newAmount);
+      setRemainingBudget((prevRemaining) => prevRemaining - newAmount);
+
+      toast({
+        title: 'Transaction Added',
+        description: 'Your transaction has been added successfully.',
+      });
+    } catch (error: any) {
+      console.error('Error in add transaction:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
-    <div className='flex min-h-screen'>
-      <aside className='w-64 border-r bg-white dark:bg-gray-950'>
-        {/* Logo */}
-        <div className='flex items-center gap-2 p-6'>
-          <div className='flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white font-bold'>
-            SW
-          </div>
-          <span className='text-xl font-semibold text-purple-600'>
-            SpendWise
-          </span>
-        </div>
-
-        {/* Navigation */}
-        <nav className='mt-6 px-4'>
-          {routes.map((route) => (
-            <Link
-              key={route.href}
-              href={route.href}
-              className={`flex items-center rounded-md px-3 py-2 text-sm font-medium mb-1 ${
-                route.active
-                  ? 'bg-purple-100 text-purple-600'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              {route.icon}
-              {route.label}
-            </Link>
-          ))}
-
-          {/* Logout Button */}
-          <Button
-            variant='ghost'
-            className='w-full mt-6 flex items-center justify-start text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-            onClick={handleLogout}
-          >
-            <LogOut className='h-5 w-5 mr-2' />
-            Logout
-          </Button>
-        </nav>
-      </aside>
-
-      {/* Main content */}
-      <div className='flex-1 flex flex-col'>
-        <main className='flex-1'>
-          <div className='p-6 space-y-6'>
-            <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
-              <div>
-                <h1 className='text-2xl font-bold'>Dashboard</h1>
-                <p className='text-muted-foreground'>
-                  Track your spending and budget at a glance
-                </p>
-              </div>
-              <Button asChild>
-                <Link href='/transactions'>Add Transaction</Link>
-              </Button>
-            </div>
-
-            {isOverBudget && (
-              <Alert variant='destructive'>
-                <AlertCircle className='h-4 w-4' />
-                <AlertTitle>Budget Alert</AlertTitle>
-                <AlertDescription>
-                  You've exceeded your total monthly budget by{' '}
-                  {formatCurrency(totalSpent - totalBudget)}.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {isLoading ? (
-              <div className='flex justify-center py-8'>
-                <p>Loading your dashboard data...</p>
-              </div>
-            ) : (
-              <>
-                {/* Budget Overview Cards */}
-                <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                  <Card>
-                    <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                      <CardTitle className='text-sm font-medium'>
-                        Total Budget
-                      </CardTitle>
-                      <DollarSign className='h-4 w-4 text-muted-foreground' />
-                    </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold'>
-                        {formatCurrency(totalBudget)}
-                      </div>
-                      <p className='text-xs text-muted-foreground'>
-                        Your total budget for this month
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                      <CardTitle className='text-sm font-medium'>
-                        Total Spent
-                      </CardTitle>
-                      {isOverBudget ? (
-                        <TrendingUp className='h-4 w-4 text-destructive' />
-                      ) : (
-                        <TrendingDown className='h-4 w-4 text-primary' />
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold'>
-                        {formatCurrency(totalSpent)}
-                      </div>
-                      <p className='text-xs text-muted-foreground'>
-                        {percentSpent.toFixed(0)}% of monthly budget used
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                      <CardTitle className='text-sm font-medium'>
-                        Remaining Budget
-                      </CardTitle>
-                      <DollarSign className='h-4 w-4 text-muted-foreground' />
-                    </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold'>
-                        {formatCurrency(Math.max(0, totalBudget - totalSpent))}
-                      </div>
-                      <Progress
-                        value={Math.min(100, percentSpent)}
-                        className='h-2 mt-2'
-                        indicatorClassName={
-                          isOverBudget ? 'bg-destructive' : undefined
-                        }
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                      <CardTitle className='text-sm font-medium'>
-                        Categories
-                      </CardTitle>
-                      <span className='text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
-                        {categories.length} Total
-                      </span>
-                    </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold'>
-                        {overBudgetCategories.length}
-                      </div>
-                      <p className='text-xs text-muted-foreground'>
-                        {overBudgetCategories.length > 0
-                          ? `${overBudgetCategories.length} categories are over budget`
-                          : 'All categories within budget'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Recent Transactions */}
-                <Card>
-                  <CardHeader className='flex flex-row items-center justify-between'>
-                    <div>
-                      <CardTitle>Recent Transactions</CardTitle>
-                      <CardDescription>
-                        Your latest spending activity
-                      </CardDescription>
-                    </div>
-                    <Button variant='outline' size='sm' asChild>
-                      <Link
-                        href='/transactions'
-                        className='flex items-center gap-1'
-                      >
-                        View All
-                        <ArrowRight className='h-4 w-4' />
-                      </Link>
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {recentTransactions.length === 0 ? (
-                      <div className='text-center py-6'>
-                        <p className='text-muted-foreground'>
-                          No transactions yet
-                        </p>
-                        <Button variant='outline' className='mt-2' asChild>
-                          <Link href='/transactions'>
-                            Add Your First Transaction
-                          </Link>
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className='space-y-4'>
-                        {recentTransactions.map((transaction) => (
-                          <div
-                            key={transaction.id}
-                            className='flex items-center justify-between border-b pb-3'
-                          >
-                            <div>
-                              <p className='font-medium'>
-                                {transaction.description}
-                              </p>
-                              <p className='text-sm text-muted-foreground'>
-                                {formatDate(transaction.date)} ·{' '}
-                                {transaction.category}
-                              </p>
-                            </div>
-                            <div
-                              className={
-                                transaction.amount < 0
-                                  ? 'text-destructive font-medium'
-                                  : 'text-green-600 font-medium'
-                              }
-                            >
-                              {formatCurrency(transaction.amount)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </div>
-        </main>
-
-        <footer className='border-t py-4 text-center text-sm text-muted-foreground'>
-          <p>
-            &copy; {new Date().getFullYear()} SpendWise. All rights reserved.
+    <div className='space-y-6'>
+      <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
+        <div>
+          <h1 className='text-2xl font-bold'>Dashboard</h1>
+          <p className='text-muted-foreground'>
+            Track your spending and budget at a glance
           </p>
-        </footer>
+        </div>
+        <Button asChild>
+          <Link href='/dashboard/transactions'>Add Transaction</Link>
+        </Button>
       </div>
+
+      {isOverBudget && (
+        <Alert variant='destructive'>
+          <AlertCircle className='h-4 w-4' />
+          <AlertTitle>Budget Alert</AlertTitle>
+          <AlertDescription>
+            You've exceeded your total monthly budget by{' '}
+            {formatCurrency(totalSpent - totalBudget)}.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isLoading ? (
+        <div className='flex justify-center py-8'>
+          <p>Loading your dashboard data...</p>
+        </div>
+      ) : (
+        <>
+          {/* Budget Overview Cards */}
+          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-sm font-medium'>
+                  Total Budget
+                </CardTitle>
+                <DollarSign className='h-4 w-4 text-muted-foreground' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {formatCurrency(totalBudget)}
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  Your total budget for this month
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-sm font-medium'>
+                  Total Spent
+                </CardTitle>
+                {isOverBudget ? (
+                  <TrendingUp className='h-4 w-4 text-destructive' />
+                ) : (
+                  <TrendingDown className='h-4 w-4 text-primary' />
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {formatCurrency(totalSpent)}
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  {percentSpent.toFixed(0)}% of monthly budget used
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-sm font-medium'>
+                  Remaining Budget
+                </CardTitle>
+                <DollarSign className='h-4 w-4 text-muted-foreground' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {formatCurrency(remainingBudget)}
+                </div>
+                <Progress
+                  value={Math.min(100, percentSpent)}
+                  className='h-2 mt-2'
+                  indicatorClassName={
+                    isOverBudget ? 'bg-destructive' : undefined
+                  }
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-sm font-medium'>
+                  Categories
+                </CardTitle>
+                <span className='text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
+                  {categories.length} Total
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {overBudgetCategories.length}
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  {overBudgetCategories.length > 0
+                    ? `${overBudgetCategories.length} categories are over budget`
+                    : 'All categories within budget'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Transactions */}
+          <Card>
+            <CardHeader className='flex flex-row items-center justify-between'>
+              <div>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription>Your latest spending activity</CardDescription>
+              </div>
+              <Button variant='outline' size='sm' asChild>
+                <Link
+                  href='/dashboard/transactions'
+                  className='flex items-center gap-1'
+                >
+                  View All
+                  <ArrowRight className='h-4 w-4' />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {recentTransactions.length === 0 ? (
+                <div className='text-center py-6'>
+                  <p className='text-muted-foreground'>No transactions yet</p>
+                  <Button variant='outline' className='mt-2' asChild>
+                    <Link href='/dashboard/transactions'>
+                      Add Your First Transaction
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className='space-y-4'>
+                  {recentTransactions.map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className='flex items-center justify-between border-b pb-3'
+                    >
+                      <div>
+                        <p className='font-medium'>{transaction.description}</p>
+                        <p className='text-sm text-muted-foreground'>
+                          {formatDate(transaction.date)} ·{' '}
+                          {transaction.category}
+                        </p>
+                      </div>
+                      <div
+                        className={
+                          transaction.amount < 0
+                            ? 'text-destructive font-medium'
+                            : 'text-green-600 font-medium'
+                        }
+                      >
+                        {formatCurrency(transaction.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <TransactionForm onAddTransaction={handleAddTransaction} />
+        </>
+      )}
     </div>
   );
 }
